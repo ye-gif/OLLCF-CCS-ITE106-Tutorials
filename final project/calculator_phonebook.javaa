@@ -1,48 +1,50 @@
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 
 public class Calculator extends JFrame implements ActionListener {
     private JTextField display;
     private String num1 = "", num2 = "", operator = "";
+    private boolean newCalculation = true;
 
     public Calculator() {
-        // Set up the JFrame
         setTitle("Calculator");
         setSize(400, 400);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLayout(new BorderLayout());
 
-        // Display panel
         display = new JTextField();
         display.setEditable(false);
         display.setFont(new Font("Arial", Font.BOLD, 20));
+        display.setBackground(new Color(230, 230, 250));
+        display.setForeground(Color.BLACK);
         add(display, BorderLayout.NORTH);
 
-        // Button panel
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new GridLayout(4, 4));
+        buttonPanel.setBackground(new Color(216, 191, 216));
 
-        // Buttons
         String[] buttons = {
                 "7", "8", "9", "/",
                 "4", "5", "6", "*",
                 "1", "2", "3", "-",
-                "C", "0", ".", "+",
-                "="
+                "C", "0", "=", "+"
         };
 
         for (String text : buttons) {
             JButton button = new JButton(text);
             button.setFont(new Font("Arial", Font.BOLD, 20));
+            button.setBackground(new Color(221, 160, 221));
+            button.setForeground(Color.BLACK);
+            button.setFocusPainted(false);
             button.addActionListener(this);
             buttonPanel.add(button);
         }
 
         add(buttonPanel, BorderLayout.CENTER);
-
-        // Make the frame visible
         setVisible(true);
     }
 
@@ -50,42 +52,39 @@ public class Calculator extends JFrame implements ActionListener {
     public void actionPerformed(ActionEvent e) {
         String command = e.getActionCommand();
 
-        try {
-            if ("0123456789.".contains(command)) {
-                // Prevent multiple decimals in a number
-                if (command.equals(".") && display.getText().contains(".")) return;
-                display.setText(display.getText() + command);
-            } else if ("/*-+".contains(command)) {
-                if (!operator.isEmpty()) {
-                    // If operator already exists, process the calculation first
-                    num2 = display.getText();
-                    double result = calculate(Double.parseDouble(num1), Double.parseDouble(num2), operator);
-                    num1 = String.valueOf(result);
-                    display.setText("");
-                } else {
-                    num1 = display.getText();
-                    display.setText("");
-                }
-                operator = command;
-            } else if ("=".equals(command)) {
-                if (num1.isEmpty() || operator.isEmpty() || display.getText().isEmpty()) {
-                    display.setText("Error");
-                    return;
-                }
-                num2 = display.getText();
-                double result = calculate(Double.parseDouble(num1), Double.parseDouble(num2), operator);
-                display.setText(String.valueOf(result));
-                saveToHistory(num1, operator, num2, result);
-                num1 = num2 = operator = ""; // Reset after calculation
-            } else if ("C".equals(command)) {
-                // Clear everything
+        if ("0123456789".contains(command)) {
+            if (newCalculation) {
                 display.setText("");
-                num1 = num2 = operator = "";
+                newCalculation = false;
             }
-        } catch (ArithmeticException ex) {
-            display.setText("Cannot divide by zero");
-        } catch (Exception ex) {
-            display.setText("Error");
+            display.setText(display.getText() + command);
+        } else if ("/*-+".contains(command)) {
+            if (!display.getText().isEmpty()) {
+                num1 = display.getText(); 
+                operator = command;       
+                display.setText("");      
+                newCalculation = false;
+            }
+        } else if ("=".equals(command)) {
+            if (!display.getText().isEmpty() && !num1.isEmpty() && !operator.isEmpty()) {
+                num2 = display.getText(); 
+                try {
+                    double result = calculate(Double.parseDouble(num1), Double.parseDouble(num2), operator);
+                    display.setText(formatResult(result));
+                    saveToHistory(num1, operator, num2, result); 
+                    newCalculation = true; 
+                    num1 = String.valueOf(result); 
+                    num2 = "";
+                    operator = "";
+                } catch (Exception ex) {
+                    display.setText("Error");
+                    newCalculation = true;
+                }
+            }
+        } else if ("C".equals(command)) {
+            display.setText("");  
+            num1 = num2 = operator = ""; 
+            newCalculation = true;
         }
     }
 
@@ -98,18 +97,30 @@ public class Calculator extends JFrame implements ActionListener {
             case "*":
                 return num1 * num2;
             case "/":
-                if (num2 == 0) throw new ArithmeticException("Cannot divide by zero");
+                if (num2 == 0) {
+                    display.setText("Cannot divide by zero");
+                    throw new ArithmeticException("Cannot divide by zero");
+                }
                 return num1 / num2;
             default:
                 throw new IllegalArgumentException("Invalid operator");
         }
     }
 
+    private String formatResult(double result) {
+        // Check if the result is a whole number
+        if (result == (int) result) {
+            return String.valueOf((int) result); // Display as an integer
+        }
+        return String.valueOf(result); // Display as a decimal if not a whole number
+    }
+
     private void saveToHistory(String num1, String operator, String num2, double result) {
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("calculator_history.txt", true))) {
-            writer.write(num1 + " " + operator + " " + num2 + " = " + result + "\n");
+            writer.write(num1 + " " + operator + " " + num2 + " = " + formatResult(result) + "\n");
         } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error saving history: " + e.getMessage());
+            System.out.println("Error saving history: " + e.getMessage());
+            display.setText("History save error");
         }
     }
 
